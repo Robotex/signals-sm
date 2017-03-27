@@ -20,39 +20,34 @@
  * Version: $Id$
  */
 
-#include "SignalHandler.h"
+#include "extension.h"
 
-#include <cstdlib>
-#include "ClientListener.h"
+#include "Signal.hpp"
 
-volatile std::sig_atomic_t g_signalStatus = 0;
-typedef void (*sig_fn)(int);
-sig_fn sigfn;
+/**
+ * @file extension.cpp
+ * @brief Implement extension code here.
+ */
 
-void signal_handler (int sig)
-{
-    g_signalStatus = sig;
+SignalExtension g_Signal;		/**< Global singleton for extension's main interface */
 
-    if (!hasPlayersConnected())
+SMEXT_LINK(&g_Signal);
+
+bool SignalExtension::SDK_OnLoad(char *error, size_t maxlength, bool late)
+{ 
+    if (!Signal<15>::SetTrap())
     {
-        untrapTERM();
-        raiseTERM();
+        snprintf(error, maxlength, "Error setting signal handler!");
+        return false;
     }
+
+    g_pSignalForward = forwards->CreateForward("OnSignal", ET_Event, 1, NULL, Param_Cell);
+    
+    return true;
 }
 
-bool trapTERM()
+void SignalExtension::SDK_OnUnload()
 {
-    sigfn = signal(SIGTERM, signal_handler);
-    return sigfn != SIG_ERR;
-}
-
-bool untrapTERM()
-{
-    return signal(SIGTERM, sigfn) == signal_handler;
-}
-
-void raiseTERM()
-{
-    if (raise(SIGTERM) != 0)
-        exit(0);
+    forwards->ReleaseForward(g_pSignalForward);
+    Signal<15>::RemoveTrap();
 }

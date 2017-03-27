@@ -20,19 +20,44 @@
  * Version: $Id$
  */
 
-#ifndef CLIENTLISTENER_H
-#define CLIENTLISTENER_H
+#include "Signal.hpp"
 
-#include "smsdk_ext.h"
+#include <csignal>
+#include <cstddef>
 
-class ClientListener : public IClientListener
+volatile std::sig_atomic_t g_signalStatus;
+IForward *g_pSignalForward = nullptr;
+
+void signal_handler (int sig)
 {
-public:
-    void OnClientDisconnected(int client);
-};
+    g_pSignalForward->PushCell(sig);
+    g_pSignalForward->Execute(nullptr);
+}
 
-extern ClientListener g_clientListener;
+template <int n>
+sig_fn Signal<n>::m_fnOldTrap = nullptr;
 
-bool hasPlayersConnected();
+template <int n>
+bool Signal<n>::SetTrap()
+{
+    sig_fn oldTrap = signal(n, signal_handler);
+    if (oldTrap == SIG_ERR)
+        return false;
+    else if (oldTrap != signal_handler)
+        m_fnOldTrap = oldTrap;
+    return true;
+}
 
-#endif // CLIENTLISTENER_H
+template <int n>
+bool Signal<n>::RemoveTrap()
+{
+    if (!m_fnOldTrap)
+        return false;
+    return (signal(n, m_fnOldTrap) != SIG_ERR);
+}
+
+template <int n>
+void Signal<n>::Raise()
+{
+    raise(n);
+}
